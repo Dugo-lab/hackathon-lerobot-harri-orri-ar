@@ -8,8 +8,11 @@
 <body>
 
     <header>
-        <h1>🤖 Tres en Raya Robótico 🟢</h1>
+        <h1>Tres en Raya Robótico</h1>
         <h2>{{ turno }}</h2>
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
     </header>
 
     <main>
@@ -26,8 +29,11 @@
         </div>
     </main>
 
-    <!-- Botón para reiniciar el juego -->
+    <!-- Selector de modo y botón de reinicio -->
     <div class="controles">
+        <a href="/modo/2j" class="btn-modo {{ 'activo' if modo == '2j' }}">2 jugadores</a>
+        <a href="/modo/ia" class="btn-modo {{ 'activo' if modo == 'ia' }}">Contra el robot</a>
+
         <form action="/reiniciar" method="GET">
             <button type="submit" class="btn-reiniciar">Reiniciar Partida</button>
         </form>

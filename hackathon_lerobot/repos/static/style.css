@@ -1,5 +1,5 @@
 * { padding: 0; margin: 0; box-sizing: border-box; }
-
+ 
 body {
     display: flex;
     flex-direction: column;
@@ -8,7 +8,7 @@ body {
     color: white;
     font-family: Arial, sans-serif;
 }
-
+ 
 header {
     display: flex;
     flex-direction: column;
@@ -16,9 +16,15 @@ header {
     padding: 2em;
     background-color: #2a2a35;
 }
-
+ 
 header h1 { color: #4CAF50; margin-bottom: 0.5em; }
-
+ 
+.error {
+    margin-top: 0.8em;
+    color: #f44336;
+    font-weight: bold;
+}
+ 
 main {
     display: flex;
     flex-grow: 1;
@@ -26,15 +32,15 @@ main {
     align-items: center;
     padding: 2em;
 }
-
+ 
 .tablero {
     display: flex;
     flex-wrap: wrap;
-    width: 380px; 
+    width: 380px;
     gap: 10px;
 }
-
-/* Las casillas ahora son enlaces <a> */
+ 
+/* Las casillas son enlaces <a> */
 .celda {
     display: flex;
     justify-content: center;
@@ -49,20 +55,38 @@ main {
     color: white;
     cursor: pointer;
 }
-
+ 
 .celda:hover { background-color: #444; }
-
+ 
 .verde { color: #4CAF50; }
 .amarillo { color: #FFEB3B; }
-
+ 
 .controles {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
+    align-items: center;
+    gap: 1em;
     padding: 1em;
     background-color: #2a2a35;
     border-top: 1px solid #444;
 }
-
+ 
+/* Botones de selección de modo */
+.btn-modo {
+    padding: 0.8em 1.5em;
+    font-size: 1.1em;
+    font-weight: bold;
+    text-decoration: none;
+    color: white;
+    background-color: #555;
+    border-radius: 5px;
+    cursor: pointer;
+}
+ 
+.btn-modo:hover { background-color: #666; }
+.btn-modo.activo { background-color: #4CAF50; }
+ 
 .btn-reiniciar {
     padding: 0.8em 2em;
     font-size: 1.2em;
@@ -73,9 +97,9 @@ main {
     cursor: pointer;
     font-weight: bold;
 }
-
+ 
 .btn-reiniciar:hover { background-color: #da190b; }
-
+ 
 footer {
     display: flex;
     justify-content: center;
@@ -83,3 +107,4 @@ footer {
     background-color: #2a2a35;
     color: gray;
 }
+ 
