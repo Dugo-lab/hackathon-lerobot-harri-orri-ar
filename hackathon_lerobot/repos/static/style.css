@@ -17,8 +17,7 @@ header {
     background-color: #2a2a35;
 }
 
-header h1 { color: #4CAF50; margin-bottom: 0.5em; font-size: 2.5em; }
-header h2 { font-weight: normal; color: lightgray; }
+header h1 { color: #4CAF50; margin-bottom: 0.5em; }
 
 main {
     display: flex;
@@ -35,6 +34,7 @@ main {
     gap: 10px;
 }
 
+/* Las casillas ahora son enlaces <a> */
 .celda {
     display: flex;
     justify-content: center;
@@ -45,11 +45,36 @@ main {
     border-radius: 10px;
     font-size: 4em;
     font-weight: bold;
-    box-shadow: 0px 4px 5px rgba(0,0,0,0.3);
+    text-decoration: none; /* Quita el subrayado */
+    color: white;
+    cursor: pointer;
 }
+
+.celda:hover { background-color: #444; }
 
 .verde { color: #4CAF50; }
 .amarillo { color: #FFEB3B; }
+
+.controles {
+    display: flex;
+    justify-content: center;
+    padding: 1em;
+    background-color: #2a2a35;
+    border-top: 1px solid #444;
+}
+
+.btn-reiniciar {
+    padding: 0.8em 2em;
+    font-size: 1.2em;
+    background-color: #f44336; /* Color rojo para reiniciar */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-reiniciar:hover { background-color: #da190b; }
 
 footer {
     display: flex;

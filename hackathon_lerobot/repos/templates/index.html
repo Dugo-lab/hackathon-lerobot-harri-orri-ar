@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Tres en Raya - Hackathon</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <h1>🤖 Tres en Raya Robótico 🟢</h1>
+        <h2>{{ turno }}</h2>
+    </header>
+
+    <main>
+        <div class="tablero">
+            <a href="/jugar/1" class="celda">{{ c1 | safe }}</a>
+            <a href="/jugar/2" class="celda">{{ c2 | safe }}</a>
+            <a href="/jugar/3" class="celda">{{ c3 | safe }}</a>
+            <a href="/jugar/4" class="celda">{{ c4 | safe }}</a>
+            <a href="/jugar/5" class="celda">{{ c5 | safe }}</a>
+            <a href="/jugar/6" class="celda">{{ c6 | safe }}</a>
+            <a href="/jugar/7" class="celda">{{ c7 | safe }}</a>
+            <a href="/jugar/8" class="celda">{{ c8 | safe }}</a>
+            <a href="/jugar/9" class="celda">{{ c9 | safe }}</a>
+        </div>
+    </main>
+
+    <!-- Botón para reiniciar el juego -->
+    <div class="controles">
+        <form action="/reiniciar" method="GET">
+            <button type="submit" class="btn-reiniciar">Reiniciar Partida</button>
+        </form>
+    </div>
+
+    <footer>
+        <p>Hackathon LeRobot Bilbao - Daoguo, Zigor y Enaitz</p>
+    </footer>
+
+</body>
+</html>
