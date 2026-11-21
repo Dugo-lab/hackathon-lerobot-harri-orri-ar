@@ -1,76 +1,88 @@
 :root {
-    --fondo: #E4E8EC;
-    --tinta: #101820;
-    --suave: #5C6B7A;
+    --fondo: #EDF0F5;
+    --tinta: #0E1726;
+    --suave: #566377;
     --panel: #FFFFFF;
-    --humano: #2740E8;
-    --robot: #E59500;
-    --linea: #C5CCD4;
+    --humano: #2A44F0;
+    --humano-claro: #E4E9FF;
+    --robot: #F29A00;
+    --robot-claro: #FFF0D3;
+    --linea: #CBD2DC;
+    --ok: #1F9D55;
 }
- 
+
 * { padding: 0; margin: 0; box-sizing: border-box; }
- 
+
 body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    min-height: 100dvh;
     background-color: var(--fondo);
     color: var(--tinta);
     font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
     line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
 }
- 
+
 /* ---------- Cabecera ---------- */
 header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.8rem 1.5rem;
     width: 100%;
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 1rem;
+    padding: 1.5rem 1.5rem 0.5rem;
 }
- 
+
 header h1 {
-    font-size: clamp(1.6rem, 4vw, 2.6rem);
+    font-size: clamp(1.7rem, 4.2vw, 3rem);
     font-weight: 800;
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
 }
- 
+
 .subtitulo {
     margin-top: 0.5rem;
     color: var(--suave);
-    max-width: 60ch;
+    font-size: 1.05rem;
+    max-width: 55ch;
 }
- 
+
 .aviso {
-    display: inline-block;
-    margin-top: 0.8rem;
-    padding: 0.3em 0.8em;
-    border: 2px solid var(--tinta);
-    border-radius: 6px;
+    padding: 0.35em 1em;
+    background-color: var(--robot-claro);
+    border: 2px solid var(--robot);
+    border-radius: 999px;
     font-weight: 600;
+    font-size: 0.95rem;
 }
- 
+
 /* ---------- Zona principal ---------- */
 main {
     display: grid;
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
     gap: 1.5rem;
     width: 100%;
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
     padding: 1rem 1.5rem;
     flex-grow: 1;
 }
- 
+
 /* ---------- Cámara ---------- */
 .camara {
     position: relative;
+    align-self: start;
     aspect-ratio: 4 / 3;
     background-color: var(--tinta);
-    border-radius: 10px;
+    border-radius: 18px;
     overflow: hidden;
 }
- 
+
 .camara video,
 .camara canvas {
     position: absolute;
@@ -79,27 +91,28 @@ main {
     height: 100%;
     object-fit: cover;
 }
- 
+
 /* Efecto espejo para que la mano se mueva como en un espejo */
 .espejo { transform: scaleX(-1); }
- 
+
 .detectado {
     position: absolute;
-    left: 0.8rem;
-    bottom: 0.8rem;
-    padding: 0.3em 0.8em;
+    left: 1rem;
+    bottom: 1rem;
+    padding: 0.4em 1em;
     background-color: var(--panel);
-    border-radius: 6px;
-    font-size: 1.1rem;
+    border-radius: 999px;
+    font-size: 1.25rem;
 }
- 
+
 /* ---------- Duelo ---------- */
 .duelo {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
     gap: 1rem;
 }
- 
+
 .lado {
     display: grid;
     grid-template-columns: auto 1fr;
@@ -107,109 +120,144 @@ main {
         "nombre nombre"
         "gesto  etiqueta";
     align-items: center;
-    column-gap: 1rem;
-    padding: 1rem 1.2rem;
+    column-gap: 1.2rem;
+    padding: 1.1rem 1.4rem 1.2rem;
+    border-radius: 18px;
+    border: 3px solid var(--linea);
     background-color: var(--panel);
-    border-radius: 10px;
-    border-left: 8px solid var(--linea);
 }
- 
-.lado-humano { border-left-color: var(--humano); }
-.lado-robot { border-left-color: var(--robot); }
- 
+
+.lado-humano { background-color: var(--humano-claro); border-color: var(--humano); }
+.lado-robot { background-color: var(--robot-claro); border-color: var(--robot); }
+
 .lado .nombre {
     grid-area: nombre;
     font-weight: 800;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
 }
- 
+
 .lado-humano .nombre { color: var(--humano); }
- 
+.lado-robot .nombre { color: #A86800; }
+
 .lado .gesto {
     grid-area: gesto;
-    font-size: 4.5rem;
+    font-size: clamp(4.5rem, 9vw, 6.5rem);
     line-height: 1.1;
 }
- 
+
 .lado .etiqueta {
     grid-area: etiqueta;
-    font-size: 1.3rem;
-    font-weight: 600;
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.2;
 }
- 
+
 /* Única animación: el robot responde a tu gesto */
 .gesto.nuevo { animation: respuesta 0.35s ease-out; }
- 
+
 @keyframes respuesta {
     from { transform: scale(0.6); }
     to { transform: scale(1); }
 }
- 
+
 .resultado {
-    padding: 0.2rem 0.2rem 0;
-    font-size: 1.15rem;
+    padding: 0.9rem 1.2rem;
+    background-color: var(--tinta);
+    color: #FFFFFF;
+    border-radius: 14px;
+    font-size: 1.2rem;
     font-weight: 600;
+    line-height: 1.3;
 }
- 
-.marcador { color: var(--suave); }
- 
+
+.marcador {
+    color: var(--suave);
+    font-size: 1.1rem;
+}
+
+.marcador strong { color: var(--tinta); }
+
 /* ---------- Controles ---------- */
 .controles {
     width: 100%;
-    max-width: 1100px;
+    max-width: 1280px;
     margin: 0 auto;
-    padding: 1rem 1.5rem 1.5rem;
+    padding: 0.5rem 1.5rem 1.5rem;
 }
- 
+
 .estado {
-    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
     color: var(--suave);
 }
- 
+
+.estado::before {
+    content: "";
+    flex: none;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background-color: var(--ok);
+}
+
 .botones {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.7rem;
+    gap: 0.8rem;
 }
- 
+
 .grupo-etiqueta { color: var(--suave); }
- 
+
 button {
     font-family: inherit;
     cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
- 
+
+/* Botones grandes para dedos: mínimo 56 px de alto */
 .btn-gesto {
-    padding: 0.6em 1.2em;
-    font-size: 1rem;
-    font-weight: 600;
+    min-height: 56px;
+    padding: 0 1.5rem;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--tinta);
     background-color: var(--panel);
     border: 2px solid var(--tinta);
-    border-radius: 6px;
+    border-radius: 14px;
 }
- 
-.btn-gesto:hover { background-color: var(--linea); }
- 
+
 .btn-reiniciar {
     margin-left: auto;
-    padding: 0.6em 1.4em;
-    font-size: 1rem;
-    font-weight: 600;
+    min-height: 56px;
+    padding: 0 1.8rem;
+    font-size: 1.15rem;
+    font-weight: 700;
     color: #FFFFFF;
     background-color: var(--tinta);
     border: 2px solid var(--tinta);
-    border-radius: 6px;
+    border-radius: 14px;
 }
- 
-.btn-reiniciar:hover { background-color: #2B3947; }
- 
+
+.btn-gesto:active,
+.btn-reiniciar:active { transform: scale(0.97); }
+
+/* El hover solo en pantallas con ratón; en táctil se queda "pegado" */
+@media (hover: hover) {
+    .btn-gesto:hover { background-color: var(--linea); }
+    .btn-reiniciar:hover { background-color: #2B3947; }
+}
+
 button:focus-visible {
     outline: 3px solid var(--humano);
     outline-offset: 2px;
 }
- 
+
 /* ---------- Pie ---------- */
 footer {
     display: flex;
@@ -218,14 +266,38 @@ footer {
     color: var(--suave);
     border-top: 1px solid var(--linea);
 }
- 
-/* ---------- Móvil y tablet ---------- */
-@media (max-width: 800px) {
+
+/* ---------- Tablet vertical y móvil ---------- */
+@media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
-    .btn-reiniciar { margin-left: 0; }
+
+    /* Los dos jugadores, uno al lado del otro */
+    .duelo { grid-template-columns: 1fr 1fr; }
+    .resultado,
+    .marcador { grid-column: 1 / -1; }
+
+    .lado {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "nombre"
+            "gesto"
+            "etiqueta";
+        justify-items: center;
+        text-align: center;
+        row-gap: 0.2rem;
+    }
 }
- 
+
+@media (max-width: 600px) {
+    header, main, .controles { padding-left: 1rem; padding-right: 1rem; }
+
+    .grupo-etiqueta { flex-basis: 100%; }
+    .btn-gesto { flex: 1; padding: 0 0.5rem; }
+    .btn-reiniciar { flex-basis: 100%; margin-left: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .gesto.nuevo { animation: none; }
+    .btn-gesto:active,
+    .btn-reiniciar:active { transform: none; }
 }
- 
