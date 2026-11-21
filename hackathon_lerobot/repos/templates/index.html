@@ -2,46 +2,268 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Tres en Raya - Hackathon</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Piedra, papel o tijera - Hackathon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
+ 
     <header>
-        <h1>Tres en Raya Robótico</h1>
-        <h2>{{ turno }}</h2>
-        {% if error %}
-        <p class="error">{{ error }}</p>
+        <h1>Piedra, papel o tijera contra el robot</h1>
+        <p class="subtitulo">Pon la mano delante de la cámara y el SO-101 responde con la pinza.</p>
+        {% if simulacion %}
+        <p class="aviso">Modo simulación: el brazo no se mueve.</p>
         {% endif %}
     </header>
-
+ 
     <main>
-        <div class="tablero">
-            <a href="/jugar/1" class="celda">{{ c1 | safe }}</a>
-            <a href="/jugar/2" class="celda">{{ c2 | safe }}</a>
-            <a href="/jugar/3" class="celda">{{ c3 | safe }}</a>
-            <a href="/jugar/4" class="celda">{{ c4 | safe }}</a>
-            <a href="/jugar/5" class="celda">{{ c5 | safe }}</a>
-            <a href="/jugar/6" class="celda">{{ c6 | safe }}</a>
-            <a href="/jugar/7" class="celda">{{ c7 | safe }}</a>
-            <a href="/jugar/8" class="celda">{{ c8 | safe }}</a>
-            <a href="/jugar/9" class="celda">{{ c9 | safe }}</a>
-        </div>
+        <section class="camara" aria-label="Cámara">
+            <video id="video" class="espejo" autoplay playsinline muted></video>
+            <canvas id="overlay" class="espejo"></canvas>
+            <p class="detectado">Detectado: <strong id="detectado">—</strong></p>
+        </section>
+ 
+        <section class="duelo" aria-live="polite">
+            <div class="lado lado-humano">
+                <span class="nombre">Tú</span>
+                <span class="gesto" id="tuEmoji">❔</span>
+                <span class="etiqueta" id="tuNombre">Esperando tu mano</span>
+            </div>
+ 
+            <div class="lado lado-robot">
+                <span class="nombre">Robot</span>
+                <span class="gesto" id="robotEmoji">❔</span>
+                <span class="etiqueta" id="robotNombre">Sin jugar todavía</span>
+            </div>
+ 
+            <p class="resultado" id="resultado">Enseña piedra, papel o tijera y mantén la mano quieta un momento.</p>
+            <p class="marcador">Rondas jugadas: <strong id="rondas">{{ rondas }}</strong></p>
+        </section>
     </main>
-
-    <!-- Selector de modo y botón de reinicio -->
-    <div class="controles">
-        <a href="/modo/2j" class="btn-modo {{ 'activo' if modo == '2j' }}">2 jugadores</a>
-        <a href="/modo/ia" class="btn-modo {{ 'activo' if modo == 'ia' }}">Contra el robot</a>
-
-        <form action="/reiniciar" method="GET">
-            <button type="submit" class="btn-reiniciar">Reiniciar Partida</button>
-        </form>
-    </div>
-
+ 
+    <section class="controles">
+        <p class="estado" id="estado">Preparando…</p>
+        <div class="botones">
+            <span class="grupo-etiqueta">Probar sin cámara:</span>
+            <button type="button" class="btn-gesto" data-gesto="piedra">✊ Piedra</button>
+            <button type="button" class="btn-gesto" data-gesto="papel">✋ Papel</button>
+            <button type="button" class="btn-gesto" data-gesto="tijera">✌️ Tijera</button>
+            <button type="button" class="btn-reiniciar" id="btnReiniciar">Reiniciar pinza</button>
+        </div>
+    </section>
+ 
     <footer>
         <p>Hackathon LeRobot Bilbao - Daoguo, Zigor y Enaitz</p>
     </footer>
-
+ 
+    <script type="module">
+        import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+ 
+        const WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm";
+        const MODELO = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+ 
+        // Cuántos fotogramas seguidos debe verse el mismo gesto para darlo por bueno
+        const FRAMES_ESTABLES = 10;
+        // Cuántos fotogramas sin gesto hacen falta para permitir repetir el mismo gesto
+        const FRAMES_SIN_MANO = 15;
+ 
+        const SIMBOLO = { piedra: "✊", papel: "✋", tijera: "✌️" };
+ 
+        const video = document.getElementById("video");
+        const overlay = document.getElementById("overlay");
+        const ctx = overlay.getContext("2d");
+        const detectadoEl = document.getElementById("detectado");
+        const estadoEl = document.getElementById("estado");
+        const tuEmoji = document.getElementById("tuEmoji");
+        const tuNombre = document.getElementById("tuNombre");
+        const robotEmoji = document.getElementById("robotEmoji");
+        const robotNombre = document.getElementById("robotNombre");
+        const resultadoEl = document.getElementById("resultado");
+        const rondasEl = document.getElementById("rondas");
+ 
+        let landmarker = null;
+        let ultimoTiempo = -1;
+        let candidato = null;
+        let contador = 0;
+        let sinMano = 0;
+        let ultimoEnviado = null;
+        let rearmado = true;
+        let ocupado = false;
+ 
+        function estado(texto) { estadoEl.textContent = texto; }
+ 
+        // ---------- Clasificación del gesto ----------
+        function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+ 
+        // Un dedo está extendido si la punta queda más lejos de la muñeca que su articulación intermedia
+        function extendido(l, punta, articulacion) {
+            return dist(l[punta], l[0]) > dist(l[articulacion], l[0]) * 1.15;
+        }
+ 
+        function clasificar(l) {
+            const indice = extendido(l, 8, 6);
+            const medio = extendido(l, 12, 10);
+            const anular = extendido(l, 16, 14);
+            const menique = extendido(l, 20, 18);
+            const total = [indice, medio, anular, menique].filter(Boolean).length;
+ 
+            if (total >= 3) return "papel";
+            if (indice && medio && !anular && !menique) return "tijera";
+            if (total === 0) return "piedra";
+            return null; // gesto dudoso, no se envía
+        }
+ 
+        // ---------- Dibujo de la mano ----------
+        function dibujar(mano) {
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            if (!mano) return;
+            ctx.fillStyle = "#E59500";
+            for (const p of mano) {
+                ctx.beginPath();
+                ctx.arc(p.x * overlay.width, p.y * overlay.height, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+ 
+        // ---------- Juego ----------
+        async function jugar(gesto) {
+            if (ocupado) return;
+            ocupado = true;
+            rearmado = false;
+            ultimoEnviado = gesto;
+ 
+            tuEmoji.textContent = SIMBOLO[gesto];
+            tuNombre.textContent = gesto;
+            robotEmoji.textContent = "⏳";
+            robotNombre.textContent = "Moviendo la pinza…";
+            resultadoEl.textContent = "El robot está respondiendo.";
+ 
+            try {
+                const resp = await fetch("/gesto", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ gesto })
+                });
+                const datos = await resp.json();
+ 
+                if (datos.ok) {
+                    robotEmoji.textContent = SIMBOLO[datos.robot];
+                    robotNombre.textContent = datos.robot;
+                    resultadoEl.textContent = "Tú: " + datos.humano + ". Robot: " + datos.robot + ". Gana el robot.";
+                    rondasEl.textContent = datos.rondas;
+                    robotEmoji.classList.remove("nuevo");
+                    void robotEmoji.offsetWidth; // reinicia la animación
+                    robotEmoji.classList.add("nuevo");
+                } else {
+                    robotEmoji.textContent = "⚠️";
+                    robotNombre.textContent = "Sin respuesta";
+                    resultadoEl.textContent = datos.mensaje || "Algo ha fallado. Inténtalo otra vez.";
+                    rearmado = true;
+                }
+            } catch (error) {
+                robotEmoji.textContent = "⚠️";
+                robotNombre.textContent = "Sin respuesta";
+                resultadoEl.textContent = "No se pudo contactar con el servidor. ¿Sigue en marcha interfaz.py?";
+                rearmado = true;
+            } finally {
+                ocupado = false;
+                contador = 0;
+            }
+        }
+ 
+        function procesar(gesto) {
+            detectadoEl.textContent = gesto ? SIMBOLO[gesto] + " " + gesto : "—";
+ 
+            if (!gesto) {
+                candidato = null;
+                contador = 0;
+                sinMano++;
+                if (sinMano >= FRAMES_SIN_MANO) rearmado = true;
+                return;
+            }
+ 
+            sinMano = 0;
+            if (gesto !== candidato) {
+                candidato = gesto;
+                contador = 1;
+                return;
+            }
+ 
+            contador++;
+            if (contador < FRAMES_ESTABLES || ocupado) return;
+            // Mismo gesto que la última vez: hay que bajar la mano antes de repetir
+            if (!rearmado && gesto === ultimoEnviado) return;
+            jugar(gesto);
+        }
+ 
+        function bucle() {
+            if (video.currentTime !== ultimoTiempo) {
+                ultimoTiempo = video.currentTime;
+                const resultado = landmarker.detectForVideo(video, performance.now());
+                const mano = resultado.landmarks[0];
+                dibujar(mano);
+                procesar(mano ? clasificar(mano) : null);
+            }
+            requestAnimationFrame(bucle);
+        }
+ 
+        async function iniciar() {
+            try {
+                estado("Cargando el detector de manos…");
+                const vision = await FilesetResolver.forVisionTasks(WASM);
+                landmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: MODELO, delegate: "CPU" },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+ 
+                estado("Esperando permiso para usar la cámara…");
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                await video.play();
+                overlay.width = video.videoWidth;
+                overlay.height = video.videoHeight;
+ 
+                estado("Listo. Enseña piedra, papel o tijera.");
+                bucle();
+            } catch (error) {
+                console.error(error);
+                estado("No se pudo iniciar la cámara o el detector (necesita internet la primera vez). Puedes jugar con los botones.");
+            }
+        }
+ 
+        // ---------- Botones ----------
+        document.querySelectorAll(".btn-gesto").forEach((boton) => {
+            boton.addEventListener("click", () => jugar(boton.dataset.gesto));
+        });
+ 
+        document.getElementById("btnReiniciar").addEventListener("click", async () => {
+            try {
+                const resp = await fetch("/reiniciar", { method: "POST" });
+                const datos = await resp.json();
+                if (datos.ok) {
+                    rondasEl.textContent = datos.rondas;
+                    tuEmoji.textContent = "❔";
+                    tuNombre.textContent = "Esperando tu mano";
+                    robotEmoji.textContent = "❔";
+                    robotNombre.textContent = "Sin jugar todavía";
+                    resultadoEl.textContent = "Pinza en posición inicial. Enseña tu mano cuando quieras.";
+                    ultimoEnviado = null;
+                    rearmado = true;
+                } else {
+                    resultadoEl.textContent = datos.mensaje || "No se pudo reiniciar.";
+                }
+            } catch (error) {
+                resultadoEl.textContent = "No se pudo contactar con el servidor.";
+            }
+        });
+ 
+        iniciar();
+    </script>
+ 
 </body>
 </html>
+ 

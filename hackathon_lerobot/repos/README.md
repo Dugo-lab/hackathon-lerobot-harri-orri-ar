@@ -1,30 +1,44 @@
-# Tres en Raya con SO-101 (Hackathon LeRobot Bilbao)
+Piedra, papel o tijera con SO-101 (Hackathon LeRobot Bilbao)
 
-Este proyecto es una demostración interactiva de robótica de imitación. Un brazo robótico SO-101 actúa como el "brazo ejecutor" de una partida de Tres en Raya (Tic-Tac-Toe), coordinado a través de una interfaz web desarrollada en Python (Flask).
+Demostración interactiva en la que un brazo robótico SO-101 reacciona a tu mano. Una cámara detecta si enseñas piedra, papel o tijera, y el robot responde con la pinza. La interfaz web está hecha con Python (Flask).
 
-## Tecnologías utilizadas
-*   **Hardware:** SO-101 (Leader y Follower), ThinkPad T430, cámaras USB.
-*   **Software:** Ubuntu, Python, Flask, HTML, CSS, SenseCraft Robotics.
-*   **Entrenamiento:** Cloud GPU.
+Tecnologías utilizadas
+Hardware: SO-101 (Leader y Follower), ThinkPad T430, cámara USB o webcam.
+Software: Python, Flask, HTML, CSS, JavaScript, LeRobot.
+Detección de la mano: MediaPipe Hand Landmarker (se ejecuta en el navegador).
+¿Cómo funciona?
+La cámara: la página abre la webcam y detecta los puntos de tu mano.
+El gesto: cuando el mismo gesto se mantiene unos instantes, el navegador lo envía al servidor.
+El robot: el servidor mueve la pinza del Follower. El robot siempre elige la jugada que gana:
+Tú haces	El robot hace	Con la pinza
+Tijera ✌️	Piedra ✊	Se cierra
+Papel ✋	Tijera ✌️	Abre y cierra varias veces
+Piedra ✊	Papel ✋	Se queda abierta
 
-## ¿Cómo funciona el juego?
-1.  **La interfaz web:** Dos jugadores interactúan con un tablero digital en el navegador.
-2.  **El turno:** Cuando un jugador hace clic en una casilla, la web envía una orden al robot.
-3.  **El robot:** El brazo físico coge un cubo de una zona de recogida y lo deposita en la casilla física correspondiente del tablero en la mesa.
+La página también tiene botones para jugar sin cámara y un botón para devolver la pinza a su posición inicial.
 
-## Flujo de entrenamiento
-*   Para que el robot sepa moverse a cada casilla, se grabaron múltiples datasets (20 episodios por casilla).
-*   Los modelos (política ACT) fueron entrenados en la nube para suplir la falta de GPU local.
+Estructura de archivos
+interfaz.py            # servidor Flask y control de la pinza
+templates/index.html   # página con la cámara y la detección de la mano
+static/style.css       # estilos
+README.md
+Cómo ejecutar el proyecto
+Conectar el brazo Follower por USB-C y comprobar su puerto (Linux: /dev/ttyACM1, Windows: COM3 o similar).
+Crear un entorno virtual e instalar las dependencias: uv venv y uv pip install flask lerobot.
+Abrir interfaz.py y revisar la configuración del principio: SIMULACION, PUERTO_ROBOT y las posiciones de la pinza.
+Ejecutar el servidor: python3 interfaz.py.
+Abrir el navegador en http://localhost:5000 y permitir el acceso a la cámara.
+Modo simulación
 
-##  Cómo ejecutar nuestro proyecto (Reproducibilidad)
-1. Conectar los brazos: Leader en `/dev/ttyACM0` y Follower en `/dev/ttyACM1`.
-2. Crear un entorno virtual e instalar Flask: `uv venv` y `uv pip install flask`.
-3. Ejecutar el servidor web: `python3 interfaz.py`.
-4. Abrir el navegador en `http://localhost:5000`.
+Con SIMULACION = True (valor por defecto) el brazo no se mueve y solo hace falta Flask. Sirve para probar la detección de la mano y la interfaz antes de conectar el robot. Para mover el brazo de verdad, cambia el valor a False.
 
-## Equipo
-*   Daoguo Dai Li
-*   Zigor Pascuas Cobos
-*   Enaitz Prieto Zubieta
-
-## Hackathon LeRobot Bilbao (Noviembre 2026)
+Ajustes a tener en cuenta
+Posiciones de la pinza: PINZA_ABIERTA y PINZA_CERRADA usan la escala 0-100 de LeRobot. Cambia los valores hasta que se vea bien con tu brazo calibrado.
+Versión de LeRobot: la ruta del import y el nombre gripper.pos pueden cambiar entre versiones. Si falla, revisa la documentación de tu versión.
+Internet: la primera vez, el navegador descarga el detector de manos y la fuente desde internet. Sin conexión, la detección no arranca y se puede jugar con los botones.
+Iluminación: funciona mejor con buena luz y la mano a unos 50 cm de la cámara.
+Equipo
+Daoguo Dai Li
+Zigor Pascuas Cobos
+Enaitz Prieto Zubieta
+Hackathon LeRobot Bilbao (Noviembre 2026)
