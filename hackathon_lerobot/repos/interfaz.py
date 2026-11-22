@@ -1,108 +1,144 @@
-from flask import Flask, render_template, request, jsonify
+"""Piedra, papel o tijera contra un brazo robótico SO-101.
+ 
+Servidor Flask que recibe el gesto detectado en el navegador y hace que el
+brazo responda con la jugada ganadora. Tiene tres formas de funcionar:
+ 
+* Simulación: no se toca el robot, solo se imprime lo que haría.
+* Modo "directo": se mueve la pinza con valores fijos desde Python.
+* Modo "politica": se lanza un modelo ACT entrenado con lerobot-rollout
+  (experimental, ver README).
+ 
+La configuración está al principio del archivo. Las rutas dependientes del
+equipo se pueden cambiar con variables de entorno sin tocar el código.
+"""
+ 
 import atexit
 import os
 import socket
 import subprocess
 import threading
 import time
-
+from pathlib import Path
+ 
+from flask import Flask, jsonify, render_template, request
+ 
 app = Flask(__name__)
-
+ 
 # =========================================================
 # CONFIGURACIÓN GENERAL
 # =========================================================
-SIMULACION = False
+SIMULACION = True        # True: el brazo no se mueve
+MODO = "directo"         # "directo" o "politica"
 PUERTO_WEB = 5000
-HTTPS = True
-
-# IMPORTANTE: Modo "politica" para usar el modelo entrenado
-MODO = "politica" 
-
+HTTPS = True             # necesario para usar la cámara desde otro dispositivo
+ 
+PUERTO_ROBOT = os.environ.get("ROBOT_PORT", "/dev/ttyACM0")
+ID_ROBOT = os.environ.get("ROBOT_ID", "mi_follower")
+ 
+# El robot siempre juega la opción que gana al gesto del humano.
 RESPUESTA_ROBOT = {
     "tijera": "piedra",
     "papel": "tijera",
     "piedra": "papel",
 }
-
-PUERTO_ROBOT = "/dev/ttyACM1"
-
+ 
 # =========================================================
-# MODO "directo" (por si acaso)
+# MODO "directo"
 # =========================================================
-ID_ROBOT = "mi_follower"
+# Posiciones de la pinza en la escala 0-100 de LeRobot.
 PINZA_ABIERTA = 90
 PINZA_CERRADA = 5
 PINZA_INICIAL = 50
-PAUSA_PINZA = 0.8
-PAUSA_TIJERA = 0.35
+ 
+PAUSA_PINZA = 0.8          # segundos de espera tras cada movimiento
+PAUSA_TIJERA = 0.35        # pausa entre aperturas y cierres de la tijera
 REPETICIONES_TIJERA = 3
-
+ 
 # =========================================================
-# MODO "politica" (modelos entrenados)
+# MODO "politica" (lerobot-rollout)
 # =========================================================
+# Con la política ACT el texto de --task es solo una etiqueta: lo que decide
+# el movimiento es el modelo que se carga (uno por gesto).
 INSTRUCCIONES = {
     "piedra": "Close the gripper like a rock",
     "papel": "Open the gripper like paper",
     "tijera": "Open and close the gripper like scissors",
 }
-
-PYTHON_SENSECRAFT = "/home/daoguo-dai/.local/share/SenseCraft Robotics/r/afb1f21fdf9484b9/runtime/bin/python"
-CARPETA_SENSECRAFT = "/home/daoguo-dai/.local/share/SenseCraft Robotics/product-store/blobs/9f519b98f4d1c3bb253c494ca58d3581f26d0074dac5152d75cf3b662fb6807c/expanded"
-
-PUERTO_POLITICA = 35347
-ESPERA_SERVIDOR = 8
-DURACION_MOVIMIENTO = 12
-
-# TRUCO: Usamos la cámara video5 para front, y -1 para gripper (así lo ignora)
+ 
+DURACION_MOVIMIENTO = 10   # segundos que se ejecuta cada modelo
+ 
+# Los nombres de las cámaras deben coincidir con los usados al grabar el dataset.
 CAMARAS = (
     '{ front: { type: opencv, index_or_path: "/dev/video5", backend: 200, width: 640, height: 480, fps: 30 }, '
     'gripper: { type: opencv, index_or_path: "/dev/video0", backend: 200, width: 640, height: 480, fps: 30 }}'
 )
-
-CALIBRACION = "/home/daoguo-dai/.config/SenseCraft Robotics/backend-storage/calibration/lerobot/robots/so_follower"
-BASE_MODELOS = "/home/daoguo-dai/.config/SenseCraft Robotics/backend-storage/projects/proj_7f9420fe/models"
-FINAL_MODELO = "/bundle/checkpoints/last/pretrained_model"
-
-MODELOS = {
-    "piedra": BASE_MODELOS + "/cloud_local_4f01c2c4f681_artifact" + FINAL_MODELO,
-    "papel": BASE_MODELOS + "/cloud_local_5f175e68d678_artifact" + FINAL_MODELO,
-    "tijera": BASE_MODELOS + "/cloud_local_4f01c2c4f681_artifact" + FINAL_MODELO,
+ 
+_SENSECRAFT = Path.home() / ".config" / "SenseCraft Robotics" / "backend-storage"
+ 
+CALIBRACION = os.environ.get(
+    "LEROBOT_CALIBRACION",
+    str(_SENSECRAFT / "calibration" / "lerobot" / "robots" / "so_follower"),
+)
+BASE_MODELOS = Path(os.environ.get(
+    "LEROBOT_MODELOS",
+    str(_SENSECRAFT / "projects" / "proj_7f9420fe" / "models"),
+))
+FINAL_MODELO = Path("bundle") / "checkpoints" / "last" / "pretrained_model"
+ 
+# Carpeta del artifact entrenado para cada gesto. El de tijera está pendiente.
+ARTIFACTS = {
+    "piedra": "cloud_local_4f01c2c4f681_artifact",
+    "papel": "cloud_local_5f175e68d678_artifact",
 }
-
+ 
 # =========================================================
 # ESTADO
 # =========================================================
 robot = None
-servidor_politica = None
 robot_lock = threading.Lock()
 rondas = 0
-
+ 
+ 
 # =========================================================
 # MODO "directo"
 # =========================================================
 def conectar_robot():
+    """Conecta con el brazo (solo en modo directo y sin simulación)."""
     global robot
     if SIMULACION or MODO != "directo":
         print("Robot no conectado desde el servidor (simulación o modo política)")
         return
-    try:
-        from lerobot.robots.so101_follower import SO101Follower, SO101FollowerConfig
-    except ImportError:
-        from lerobot.common.robots.so101_follower import SO101Follower, SO101FollowerConfig
+ 
+    from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
+ 
+    ruta_calib = os.path.join(CALIBRACION, ID_ROBOT + ".json")
+    if not os.path.exists(ruta_calib):
+        print("=" * 60)
+        print("ATENCIÓN: no existe el archivo de calibración:")
+        print("  ", ruta_calib)
+        print("Calibra primero a mano con:")
+        print(f"  lerobot-calibrate --robot.type=so101_follower "
+              f"--robot.port={PUERTO_ROBOT} --robot.id={ID_ROBOT}")
+        print("=" * 60)
+ 
     config = SO101FollowerConfig(port=PUERTO_ROBOT, id=ID_ROBOT)
     robot = SO101Follower(config)
     robot.connect()
     atexit.register(robot.disconnect)
     poner_pinza(PINZA_INICIAL)
     print("Robot conectado en", PUERTO_ROBOT)
-
+ 
+ 
 def poner_pinza(valor, espera=PAUSA_PINZA):
+    """Mueve la pinza a una posición y espera a que llegue."""
     print(f"PINZA -> {valor}")
     if not SIMULACION and robot:
         robot.send_action({"gripper.pos": float(valor)})
     time.sleep(espera)
-
+ 
+ 
 def ejecutar_directo(respuesta):
+    """Representa el gesto del robot moviendo la pinza con valores fijos."""
     if respuesta == "piedra":
         poner_pinza(PINZA_CERRADA)
     elif respuesta == "papel":
@@ -111,83 +147,101 @@ def ejecutar_directo(respuesta):
         for _ in range(REPETICIONES_TIJERA):
             poner_pinza(PINZA_ABIERTA, PAUSA_TIJERA)
             poner_pinza(PINZA_CERRADA, PAUSA_TIJERA)
-
+ 
+ 
 # =========================================================
-# MODO "politica"
+# MODO "politica" (lerobot-rollout)
 # =========================================================
 def parar(proceso):
+    """Termina un proceso hijo, con kill si no responde a tiempo."""
     if proceso is not None and proceso.poll() is None:
         proceso.terminate()
         try:
             proceso.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proceso.kill()
-
-def iniciar_servidor_politica():
-    global servidor_politica
-    if SIMULACION or MODO != "politica":
-        return
-    servidor_politica = subprocess.Popen(
-        [PYTHON_SENSECRAFT, "-m", "backend.run.encoded_policy_server",
-         "--host=127.0.0.1", f"--port={PUERTO_POLITICA}", "--fps=30"],
-        cwd=CARPETA_SENSECRAFT)
-    atexit.register(parar, servidor_politica)
-    time.sleep(ESPERA_SERVIDOR)
-    if servidor_politica.poll() is not None:
-        raise RuntimeError("El servidor de políticas no arrancó: mira el error de arriba")
-    print("Servidor de políticas listo")
-
+ 
+ 
+def ruta_modelo(gesto):
+    """Devuelve la carpeta del modelo de un gesto, o None si no está definido."""
+    artifact = ARTIFACTS.get(gesto)
+    if artifact is None:
+        return None
+    return str(BASE_MODELOS / artifact / FINAL_MODELO)
+ 
+ 
 def ejecutar_politica(respuesta):
+    """Lanza el modelo entrenado del gesto con lerobot-rollout."""
     print("ROBOT:", INSTRUCCIONES[respuesta])
     if SIMULACION:
         time.sleep(2)
         return
-    ruta = MODELOS[respuesta]
-    if not os.path.isdir(ruta):
+ 
+    ruta = ruta_modelo(respuesta)
+    if ruta is None or not os.path.isdir(ruta):
         raise RuntimeError(f"Todavía no hay modelo de {respuesta}")
-    
+ 
+    # Estrategia "base": ejecución autónoma sin grabar datos.
+    comando = [
+        "lerobot-rollout",
+        "--strategy.type=base",
+        "--policy.path=" + ruta,
+        "--robot.type=so101_follower",
+        "--robot.port=" + PUERTO_ROBOT,
+        "--robot.id=" + ID_ROBOT,
+        "--robot.calibration_dir=" + CALIBRACION,
+        "--robot.cameras=" + CAMARAS,
+        "--task=" + INSTRUCCIONES[respuesta],
+        "--duration=" + str(DURACION_MOVIMIENTO),
+        "--display_data=false",
+    ]
+    print("[lerobot-rollout] comando:", " ".join(comando))
+ 
     cliente = subprocess.Popen(
-        [PYTHON_SENSECRAFT, "-m", "backend.run.lerobot_async_robot_client_runtime",
-         "--robot.type=so100_follower", "--robot.port=" + PUERTO_ROBOT,
-         "--robot.cameras=" + CAMARAS, "--robot.id=so100_follower",
-         "--task=抓取积木", f"--server_address=127.0.0.1:{PUERTO_POLITICA}",
-         "--policy_type=act", "--policy_device=cpu", "--client_device=cpu",
-         "--actions_per_chunk=120", "--chunk_size_threshold=0.9",
-         "--aggregate_fn_name=weighted_average", "--fps=30",
-         "--pretrained_name_or_path=" + ruta,
-         "--robot.calibration_dir=" + CALIBRACION],
-        cwd=CARPETA_SENSECRAFT)
+        comando, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+ 
     try:
-        codigo = cliente.wait(timeout=DURACION_MOVIMIENTO)
-        if codigo != 0:
-            raise RuntimeError("El modelo de " + respuesta + " terminó con error")
+        salida, _ = cliente.communicate(timeout=DURACION_MOVIMIENTO + 30)
+        if salida:
+            print("[lerobot-rollout]")
+            print(salida)
+        if cliente.returncode != 0:
+            raise RuntimeError(
+                "lerobot-rollout terminó con código " + str(cliente.returncode))
     except subprocess.TimeoutExpired:
-        pass 
+        print("[lerobot-rollout] timeout, matando")
+        parar(cliente)
+        raise RuntimeError("lerobot-rollout no terminó a tiempo")
     finally:
         parar(cliente)
-
+ 
+ 
 def ejecutar_respuesta(respuesta):
     if MODO == "politica":
         ejecutar_politica(respuesta)
     else:
         ejecutar_directo(respuesta)
-
+ 
+ 
 # =========================================================
 # RUTAS
 # =========================================================
 @app.route("/")
 def home():
     return render_template("index.html", simulacion=SIMULACION, rondas=rondas)
-
+ 
+ 
 @app.route("/gesto", methods=["POST"])
 def gesto():
+    """Recibe el gesto del humano y hace que el robot responda."""
     global rondas
     datos = request.get_json(silent=True) or {}
     humano = datos.get("gesto")
     if humano not in RESPUESTA_ROBOT:
         return jsonify(ok=False, mensaje="Gesto no válido"), 400
     if not robot_lock.acquire(blocking=False):
-        return jsonify(ok=False, ocupado=True, mensaje="El robot se está moviendo"), 409
+        return jsonify(ok=False, ocupado=True,
+                       mensaje="El robot se está moviendo"), 409
     try:
         respuesta = RESPUESTA_ROBOT[humano]
         print(f"TÚ: {humano}  ->  ROBOT: {respuesta}")
@@ -199,12 +253,15 @@ def gesto():
         return jsonify(ok=False, mensaje="Error del robot: " + str(error)), 500
     finally:
         robot_lock.release()
-
+ 
+ 
 @app.route("/reiniciar", methods=["POST"])
 def reiniciar():
+    """Devuelve la pinza a su posición inicial y pone el marcador a cero."""
     global rondas
     if not robot_lock.acquire(blocking=False):
-        return jsonify(ok=False, ocupado=True, mensaje="El robot se está moviendo"), 409
+        return jsonify(ok=False, ocupado=True,
+                       mensaje="El robot se está moviendo"), 409
     try:
         if MODO == "directo" and robot:
             poner_pinza(PINZA_INICIAL)
@@ -215,8 +272,10 @@ def reiniciar():
         return jsonify(ok=False, mensaje="No se pudo reiniciar la pinza"), 500
     finally:
         robot_lock.release()
-
+ 
+ 
 def ip_local():
+    """IP del equipo en la red local, para abrir la web desde otro dispositivo."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.connect(("10.255.255.255", 1))
@@ -225,13 +284,13 @@ def ip_local():
         return "127.0.0.1"
     finally:
         sock.close()
-
+ 
+ 
 if __name__ == "__main__":
     conectar_robot()
-    iniciar_servidor_politica()
     if HTTPS:
         try:
-            import cryptography
+            import cryptography  # noqa: F401
         except ImportError:
             print("Falta 'cryptography'. Se arranca en HTTP.")
             HTTPS = False
@@ -240,3 +299,4 @@ if __name__ == "__main__":
     print(f"Desde la tablet:  {esquema}://{ip_local()}:{PUERTO_WEB}")
     app.run(host="0.0.0.0", port=PUERTO_WEB, debug=False, use_reloader=False,
             ssl_context="adhoc" if HTTPS else None)
+ 

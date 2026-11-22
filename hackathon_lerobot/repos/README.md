@@ -1,139 +1,150 @@
-# Piedra, papel o tijera con SO-101 (Hackathon LeRobot Bilbao)
+Piedra, papel o tijera contra un brazo SO-101
 
-Demostración interactiva en la que un brazo robótico SO-101 reacciona a tu mano. Una cámara detecta si enseñas piedra, papel o tijera, y el robot responde con la pinza. La interfaz web está hecha con Python (Flask) y funciona tanto en el portátil como en una tablet.
+Proyecto desarrollado en el Hackathon LeRobot Bilbao (noviembre de 2026). Una cámara detecta el gesto de la mano de una persona (piedra, papel o tijera) y un brazo robótico SO-101 responde con la pinza, eligiendo siempre la jugada que gana. La interfaz es una página web servida con Flask que se puede usar desde el propio portátil o desde una tablet.
 
-## Tecnologías utilizadas
+Funcionamiento
 
-- **Hardware:** SO-101 (Leader y Follower), ThinkPad T430, cámara USB o webcam, tablet (opcional).
-- **Software:** Python, Flask, HTML, CSS, JavaScript, LeRobot.
-- **Detección de la mano:** MediaPipe Hand Landmarker (se ejecuta en el navegador).
-- **Entrenamiento de los modelos:** SenseCraft Robotics / LeRobot (política ACT).
+El sistema se reparte en dos partes:
 
-## ¿Cómo funciona?
+Navegador. La página abre la cámara y detecta los puntos de la mano con MediaPipe Hand Landmarker. Un clasificador sencillo decide si el gesto es piedra, papel o tijera según qué dedos están extendidos. Cuando el mismo gesto se mantiene durante varios fotogramas seguidos, se envía al servidor.
+Servidor. Flask recibe el gesto, calcula la respuesta del robot y mueve el brazo. Mientras el brazo se mueve rechaza nuevas peticiones para evitar solapar movimientos.
 
-1. **La cámara:** la página abre la cámara y detecta los puntos de tu mano.
-2. **El gesto:** cuando el mismo gesto se mantiene unos instantes, el navegador lo envía al servidor.
-3. **El robot:** el servidor mueve el Follower. El robot siempre elige la jugada que gana:
+El robot responde así:
 
-| Tú haces | El robot hace | Con la pinza |
-|---|---|---|
-| Tijera ✌️ | Piedra ✊ | Se cierra |
-| Papel ✋ | Tijera ✌️ | Abre y cierra varias veces |
-| Piedra ✊ | Papel ✋ | Se queda abierta |
+Humano	Robot	Movimiento de la pinza
+Tijera	Piedra	Se cierra
+Papel	Tijera	Se abre y se cierra varias veces
+Piedra	Papel	Se abre
 
-La página también tiene botones grandes para jugar sin cámara y un botón para devolver la pinza a su posición inicial.
+La página incluye también botones para jugar sin cámara y un botón para devolver la pinza a su posición inicial.
 
-## Estructura de archivos
+Tecnologías
+Hardware: brazo SO-101 (Leader y Follower), portátil Linux, cámara web o USB y, opcionalmente, una tablet.
+Backend: Python 3 y Flask.
+Frontend: HTML, CSS y JavaScript sin dependencias de compilación.
+Detección de la mano: MediaPipe Tasks Vision (Hand Landmarker), ejecutado en el navegador.
+Control del robot: LeRobot.
+Entrenamiento de los modelos: SenseCraft Robotics y LeRobot, con la política ACT.
+Estructura del repositorio
+.
+├── interfaz.py            Servidor Flask y control del robot
+├── templates/
+│   └── index.html         Página con la cámara y la detección de la mano
+├── static/
+│   └── style.css          Estilos para portátil y tablet
+├── requirements.txt       Dependencias de Python
+└── README.md
 
-```
-interfaz.py            # servidor Flask y control del robot
-templates/index.html   # página con la cámara y la detección de la mano
-static/style.css       # estilos (portátil y tablet)
-README.md
-```
+Las carpetas templates/ y static/ deben mantener esos nombres, porque Flask las busca por defecto.
 
-La carpeta `templates/` y la carpeta `static/` tienen que llamarse exactamente así: Flask las busca por su nombre.
+Requisitos
+Python 3.10 o superior.
+Un navegador moderno con acceso a la cámara.
+Conexión a internet la primera vez, para descargar el detector de manos y la tipografía.
+Para mover el brazo de verdad: LeRobot instalado en el mismo entorno, el Follower conectado por USB y su calibración hecha.
+Instalación
+bash
+git clone <url-del-repositorio>
+cd <carpeta-del-repositorio>
 
-## Cómo ejecutar el proyecto
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-1. Conecta el brazo Follower por USB-C y comprueba su puerto (Linux: `/dev/ttyACM1`, Windows: `COM3` o similar).
-2. Entra en la carpeta del proyecto (la que contiene `interfaz.py`).
-3. Crea un entorno virtual, actívalo e instala las dependencias.
+En Windows, el entorno se activa con .venv\Scripts\Activate.ps1. Si PowerShell bloquea la ejecución de scripts, se puede permitir solo para esa sesión con Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass.
 
-   **Windows (PowerShell):**
-   ```powershell
-   python -m venv .venv
-   .venv\Scripts\Activate.ps1
-   pip install flask cryptography
-   ```
-   Si PowerShell dice que la ejecución de scripts está deshabilitada, ejecuta antes `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`.
+Si se va a controlar el robot, hay que instalar también LeRobot siguiendo su documentación oficial, ya que no se incluye en requirements.txt.
 
-   **Linux:**
-   ```bash
-   uv venv
-   source .venv/bin/activate
-   uv pip install flask cryptography
-   ```
+Ejecución
+Revisa la configuración que aparece al principio de interfaz.py (ver la sección siguiente).
+Arranca el servidor:
+bash
+python3 interfaz.py
+La terminal muestra las direcciones disponibles:
+En este equipo:   https://localhost:5000
+Desde la tablet:  https://192.168.x.x:5000
+Abre la dirección en el navegador y concede el permiso de cámara.
 
-   Para mover el brazo de verdad, LeRobot también tiene que estar instalado en ese entorno.
-4. Abre `interfaz.py` y revisa la configuración del principio: `SIMULACION`, `MODO`, `PUERTO_ROBOT`, `PUERTO_WEB` y `HTTPS`.
-5. Arranca el servidor: `python interfaz.py` (en Linux, `python3 interfaz.py`). La terminal muestra las direcciones para abrir la web.
-6. Abre la dirección en el navegador y permite el acceso a la cámara.
+La web debe abrirse siempre a través del servidor. No funciona abriendo index.html con doble clic ni con extensiones tipo Live Server, porque es una plantilla de Flask y necesita que el servidor la renderice.
 
-> La web hay que abrirla siempre a través del servidor Flask. No sirve abrir `index.html` con Live Server o haciendo doble clic: es una plantilla de Flask y sin el servidor no carga ni el CSS ni los botones.
+Configuración
 
-## Usarlo desde la tablet
+Los parámetros principales están al inicio de interfaz.py:
 
-El servidor escucha en toda la red, así que la tablet puede usar la web mientras el robot sigue conectado por USB al portátil. La tablet hace de pantalla y de cámara.
+Parámetro	Descripción
+SIMULACION	Si es True, el brazo no se mueve y solo se imprime la acción. Es el valor por defecto.
+MODO	"directo" o "politica" (ver más abajo).
+PUERTO_WEB	Puerto en el que escucha el servidor. Por defecto 5000.
+HTTPS	Activa HTTPS con un certificado autofirmado. Necesario para la cámara desde otro dispositivo.
+PINZA_ABIERTA, PINZA_CERRADA, PINZA_INICIAL	Posiciones de la pinza en el modo directo, en la escala 0-100 de LeRobot.
 
-1. Conecta la tablet y el portátil a la **misma wifi**.
-2. Arranca el servidor. La terminal muestra algo así:
-   ```
-   En este equipo:   https://localhost:5000
-   Desde la tablet:  https://192.168.x.x:5000  (misma wifi)
-   ```
-3. Escribe la segunda dirección en el navegador de la tablet.
-4. El navegador avisará de que la conexión no es privada, porque el certificado es autofirmado. Pulsa "Avanzado" y "Continuar". Después permite la cámara.
+Algunas rutas dependen del equipo y se pueden cambiar con variables de entorno, sin editar el código:
 
-Cosas a tener en cuenta:
+Variable	Uso	Valor por defecto
+ROBOT_PORT	Puerto serie del Follower	/dev/ttyACM0
+ROBOT_ID	Identificador del robot en la calibración	mi_follower
+LEROBOT_CALIBRACION	Carpeta con el archivo de calibración	Almacenamiento de SenseCraft
+LEROBOT_MODELOS	Carpeta que contiene los modelos entrenados	Almacenamiento de SenseCraft
 
-- **HTTPS:** los navegadores solo dejan usar la cámara desde `localhost` o con `https://`. Por eso `HTTPS = True` (necesita el paquete `cryptography`). Si falta, el servidor arranca en HTTP y la cámara de la tablet no funcionará, pero los botones sí.
-- **Firewall de Windows:** la primera vez puede preguntar si permites Python en redes privadas. Acepta.
-- **Wifi con aislamiento:** algunas redes (hackathones, colegios) impiden que los dispositivos se vean entre sí. Si la tablet no conecta, usa el punto de acceso del móvil para los dos equipos.
-- **Modo debug desactivado:** abierto a la red, el modo debug permitiría ejecutar código a cualquiera. Por eso, al cambiar el HTML o el CSS, hay que reiniciar el servidor y refrescar el navegador con `Ctrl + Shift + R`.
+Ejemplo:
 
-## Modos de funcionamiento
+bash
+ROBOT_PORT=/dev/ttyACM1 python3 interfaz.py
 
-### Simulación
+El puerto del robot puede cambiar al reconectar el cable USB. Se puede comprobar con ls /dev/ttyACM* en Linux.
 
-Con `SIMULACION = True` (valor por defecto) el brazo no se mueve y solo hace falta Flask. Sirve para probar la detección de la mano y la interfaz antes de conectar el robot. Para mover el brazo de verdad, cambia el valor a `False`.
+Modos de funcionamiento
+Simulación
 
-### Modo `directo` (sin entrenamiento)
+Con SIMULACION = True el brazo no se mueve y solo hace falta Flask. Es útil para probar la detección de la mano y la interfaz sin tener el robot conectado.
 
-Con `MODO = "directo"` el servidor se conecta al SO-101 y mueve la pinza con valores fijos (`PINZA_ABIERTA`, `PINZA_CERRADA`, `PINZA_INICIAL`). Sirve para probar todo el sistema sin modelos entrenados.
+Modo directo
 
-### Modo `politica` (con los modelos entrenados)
+Con SIMULACION = False y MODO = "directo", el servidor se conecta al SO-101 desde Python y mueve la pinza con los valores fijos definidos en la configuración. No requiere modelos entrenados, por lo que es la forma más sencilla de comprobar todo el sistema con el robot real. Si el archivo de calibración no existe, el servidor lo avisa al arrancar e indica el comando para generarlo:
 
-Con `MODO = "politica"` cada respuesta del robot la ejecuta un modelo entrenado distinto. Hay **4 datasets**, uno por cada hueco del diccionario `COMANDOS` de `interfaz.py`:
+bash
+lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=mi_follower
 
-| Dataset | Qué hace el robot |
-|---|---|
-| `piedra` | Cierra la pinza |
-| `papel` | Abre la pinza |
-| `tijera` | Abre y cierra la pinza |
-| `nada` | No hace nada (se queda quieto) |
+Este es el modo que se utilizó en la demostración final.
 
-Para cada uno hay que rellenar dos cosas:
+Modo política (experimental)
 
-- **`INSTRUCCIONES`:** la frase del dataset. Tiene que ser idéntica a la usada al grabarlo.
-- **`COMANDOS`:** el comando que lanza el modelo entrenado, en una sola línea. Mientras ponga `PEGAR AQUÍ...`, el servidor avisa de que falta ese comando.
+Con MODO = "politica", cada respuesta del robot la ejecuta un modelo ACT entrenado con un dataset distinto, lanzado mediante lerobot-rollout. Los datasets definidos son:
 
-Ejemplo de comando para un hueco:
+Gesto	Instrucción del dataset	Modelo
+Piedra	Close the gripper like a rock	Entrenado
+Papel	Open the gripper like paper	Entrenado
+Tijera	Open and close the gripper like scissors	Pendiente
 
-```python
-"nada": '''lerobot-rollout --strategy.type=base --policy.path=C:/ruta/pretrained_model --robot.type=so101_follower --robot.port=COM3 --robot.id=mi_follower --robot.cameras="{ up: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" --task="Do nothing" --duration=10''',
-```
+Los modelos se localizan a partir de LEROBOT_MODELOS y del diccionario ARTIFACTS de interfaz.py, que asocia cada gesto con la carpeta del artifact entrenado. Para añadir el modelo de tijera basta con incluir su entrada en ese diccionario.
 
-- `--policy.path`: carpeta `pretrained_model` del modelo entrenado (con `/` en lugar de `\`).
-- `--robot.cameras`: debe ser igual a la configuración de cámaras con la que se grabó el dataset.
-- `--task`: la misma frase que en `INSTRUCCIONES`.
-- `--duration`: segundos que se ejecuta el modelo. Tiene que ser menor que `TIEMPO_MAXIMO` (120 s por defecto), o el servidor cortará el modelo y dará error.
+Estado actual: este modo no funciona de forma fiable. El servidor construye y lanza el comando de lerobot-rollout, pero la ejecución del modelo falla y el brazo no se mueve. No se ha llegado a depurar la causa durante el hackathon. El resto de la aplicación no depende de este modo.
 
-Prueba siempre el comando a mano en la terminal antes de pegarlo en `interfaz.py`.
+Para retomarlo, lo más práctico es lanzar el comando que imprime el servidor (línea [lerobot-rollout] comando:) directamente en una terminal y revisar el error. Conviene comprobar:
 
-> Por ahora la web solo envía piedra, papel y tijera. El hueco `nada` está preparado en el servidor (si recibe ese gesto, el robot se queda quieto), pero la interfaz todavía no tiene un botón ni una detección que lo active.
+Que los flags existen en la versión de LeRobot instalada (lerobot-rollout --help). Entre versiones han cambiado el comando de inferencia y algunos argumentos.
+Que los nombres de las cámaras (front y gripper) coinciden con los del dataset de entrenamiento.
+Que los índices de las cámaras (/dev/video*) y el puerto del robot son los actuales.
+Que ningún otro proceso, como la aplicación de SenseCraft, tiene abierto el puerto serie.
+Uso desde una tablet
 
-## Ajustes a tener en cuenta
+El servidor escucha en toda la red local, de modo que la tablet puede hacer de pantalla y de cámara mientras el robot sigue conectado por USB al portátil.
 
-- **Posiciones de la pinza:** `PINZA_ABIERTA` y `PINZA_CERRADA` usan la escala 0-100 de LeRobot. Cambia los valores hasta que se vea bien con tu brazo calibrado.
-- **Versión de LeRobot:** la ruta del import, el nombre `gripper.pos` y el comando de inferencia pueden cambiar entre versiones. En versiones recientes se usa `lerobot-rollout`; en la 0.5.1 y anteriores, `lerobot-record`. Si falla, revisa la documentación de tu versión.
-- **Internet:** la primera vez, el navegador descarga el detector de manos y la fuente desde internet. Sin conexión, la detección no arranca y se puede jugar con los botones. En la tablet también hace falta conexión.
-- **Iluminación:** funciona mejor con buena luz y la mano a unos 50 cm de la cámara.
+Conecta la tablet y el portátil a la misma red wifi.
+Arranca el servidor y escribe en la tablet la dirección que aparece como "Desde la tablet".
+El navegador avisará de que la conexión no es privada, porque el certificado es autofirmado. Hay que elegir las opciones avanzadas y continuar. Después se concede el permiso de cámara.
 
-## Equipo
+Algunas consideraciones:
 
-- Daoguo Dai Li
-- Zigor Pascuas Cobos
-- Enaitz Prieto Zubieta
-
-Hackathon LeRobot Bilbao (Noviembre 2026)
+HTTPS. Los navegadores solo permiten usar la cámara desde localhost o con HTTPS. Si falta el paquete cryptography, el servidor arranca en HTTP: los botones siguen funcionando, pero la cámara de la tablet no.
+Aislamiento de red. Algunas redes (eventos, centros educativos) impiden que los dispositivos se vean entre sí. Si la tablet no conecta, una solución es usar el punto de acceso del móvil para ambos equipos.
+Cortafuegos. En Windows, la primera vez puede aparecer un aviso para permitir Python en redes privadas.
+Cambios en la interfaz. El modo debug de Flask está desactivado a propósito, porque abierto a la red permitiría ejecutar código de forma remota. Tras modificar el HTML o el CSS hay que reiniciar el servidor y recargar el navegador sin caché (Ctrl + Shift + R).
+Consejos de uso
+La detección funciona mejor con buena iluminación y la mano a unos 50 cm de la cámara.
+Hay que mantener el gesto quieto un instante hasta que se envíe. Para repetir el mismo gesto, primero hay que bajar la mano.
+Si el robot no responde, la propia página muestra el mensaje de error devuelto por el servidor, y los detalles aparecen en la terminal.
+Autores
+Daoguo Dai Li
+Zigor Pascuas Cobos
+Enaitz Prieto Zubieta
